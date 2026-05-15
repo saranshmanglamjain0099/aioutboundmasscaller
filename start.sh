@@ -25,8 +25,10 @@ if [ -z "$GOOGLE_API_KEY" ]; then
     echo "WARNING: GOOGLE_API_KEY not set. Gemini AI will not work."
 fi
 
-echo "Starting FastAPI server on port 8000..."
-uvicorn server:app --host 0.0.0.0 --port 8000 &
+# Coolify sets PORT env var — use it, or default to 8000
+APP_PORT="${PORT:-8000}"
+echo "Starting FastAPI server on port ${APP_PORT}..."
+uvicorn server:app --host 0.0.0.0 --port "${APP_PORT}" &
 SERVER_PID=$!
 
 sleep 2
