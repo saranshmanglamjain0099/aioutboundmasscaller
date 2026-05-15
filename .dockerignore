@@ -1,5 +1,9 @@
 .env
-__pycache__/
+.env.*
+!.env.example
+.git
+.gitignore
+__pycache__
 *.pyc
 *.pyo
 *.db
@@ -12,3 +16,6 @@ node_modules/
 dist/
 build/
 .DS_Store
+dashboard/
+docker-compose.yml
+*.md

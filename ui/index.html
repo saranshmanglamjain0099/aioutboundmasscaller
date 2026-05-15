@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OutboundAI — Dashboard</title>
+<meta name="description" content="AI-powered outbound voice calling SaaS platform with Gemini Live">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<div id="toasts" class="toast-container"></div>
+
+<div class="header">
+  <div style="display:flex;align-items:center">
+    <h1>OutboundAI</h1>
+    <span class="sub">AI Voice Calling Platform</span>
+  </div>
+  <span style="color:var(--text2);font-size:12px">Gemini Live + Vobiz SIP</span>
+</div>
+
+<div class="nav">
+  <button data-tab="stats" class="active">📊 Stats</button>
+  <button data-tab="call">📞 Single Call</button>
+  <button data-tab="batch">📋 Batch Call</button>
+  <button data-tab="campaigns">🚀 Campaigns</button>
+  <button data-tab="agents">🤖 Agents</button>
+  <button data-tab="prompt">✏️ AI Prompt</button>
+  <button data-tab="appointments">📅 Appointments</button>
+  <button data-tab="calls">📝 Call Logs</button>
+  <button data-tab="crm">👥 CRM</button>
+  <button data-tab="settings">⚙️ Settings</button>
+  <button data-tab="logs">📋 Logs</button>
+  <button data-tab="setup">🔧 Setup</button>
+</div>
+
+<div class="main">
+
+<!-- STATS -->
+<div id="p-stats" class="panel active">
+  <div class="kpi-grid">
+    <div class="kpi"><div class="val" id="kpi-total">0</div><div class="lbl">Total Calls</div></div>
+    <div class="kpi"><div class="val" id="kpi-booked">0</div><div class="lbl">Booked</div></div>
+    <div class="kpi"><div class="val" id="kpi-ni">0</div><div class="lbl">Not Interested</div></div>
+    <div class="kpi"><div class="val" id="kpi-rate">0%</div><div class="lbl">Booking Rate</div></div>
+    <div class="kpi"><div class="val" id="kpi-dur">-</div><div class="lbl">Avg Duration</div></div>
+  </div>
+  <div id="config-chips" class="config-chips"></div>
+  <div class="charts-grid">
+    <div class="chart-card"><h3>Outcomes Distribution</h3><canvas id="chart-outcomes"></canvas></div>
+    <div class="chart-card"><h3>Calls — Last 14 Days</h3><canvas id="chart-timeline"></canvas></div>
+    <div class="chart-card"><h3>Avg Duration by Outcome</h3><canvas id="chart-duration"></canvas></div>
+  </div>
+</div>
+
+<!-- SINGLE CALL -->
+<div id="p-call" class="panel">
+  <div class="card" style="max-width:600px">
+    <h2>📞 Place a Single Call</h2>
+    <form id="call-form">
+      <div class="form-group"><label>Phone (E.164)</label><input id="f-phone" placeholder="+919876543210" required></div>
+      <div class="form-group"><label>Lead Name</label><input id="f-name" placeholder="Shreyas Raj"></div>
+      <div class="form-group"><label>Business Name</label><input id="f-biz" placeholder="Our Company"></div>
+      <div class="form-group"><label>Service Type</label><input id="f-service" placeholder="Consultation"></div>
+      <div class="form-group"><label>Agent Profile</label><select id="f-agent-profile"><option value="">Default</option></select></div>
+      <div class="form-group"><label><input type="checkbox" onchange="$('f-custom-prompt').style.display=this.checked?'block':'none'"> Custom Prompt</label>
+        <textarea id="f-custom-prompt" style="display:none;margin-top:8px" placeholder="Override system prompt..."></textarea></div>
+      <button type="submit" class="btn btn-primary">📞 Dial Now</button>
+    </form>
+  </div>
+</div>
+
+<!-- BATCH CALL -->
+<div id="p-batch" class="panel">
+  <div class="card" style="max-width:700px">
+    <h2>📋 Batch Call from CSV</h2>
+    <div class="form-group"><label>Agent Profile</label><select id="bc-agent-profile"><option value="">Default</option></select></div>
+    <div class="form-group"><label>CSV File (phone, lead_name, business_name, service_type)</label><input type="file" id="bc-file" accept=".csv"></div>
+    <div class="form-group"><label>Delay between calls (seconds)</label><input id="bc-delay" type="number" value="3" min="1" max="60"></div>
+    <button class="btn btn-secondary" onclick="parseCSV()">Parse CSV</button>
+    <div id="bc-preview" style="margin:12px 0"></div>
+    <div id="bc-progress" style="display:none"><div class="progress-bar"><div id="bc-progress-fill" class="fill" style="width:0"></div></div></div>
+    <button class="btn btn-primary" onclick="startBatch()">🚀 Start Batch</button>
+  </div>
+</div>
+
+<!-- CAMPAIGNS -->
+<div id="p-campaigns" class="panel">
+  <div class="grid-2">
+    <div class="card">
+      <h2>Create Campaign</h2>
+      <div class="form-group"><label>Name</label><input id="camp-name" placeholder="Q2 Outreach"></div>
+      <div class="form-group"><label>Schedule</label><select id="camp-schedule"><option value="once">Once (run immediately)</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option></select></div>
+      <div class="form-group"><label>Time</label><input id="camp-time" type="time" value="09:00"></div>
+      <div class="form-group"><label>Delay (s)</label><input id="camp-delay" type="number" value="3" min="1"></div>
+      <div class="form-group"><label>Agent Profile</label><select id="camp-agent-profile"><option value="">Default</option></select></div>
+      <div class="form-group"><label>CSV</label><input type="file" id="camp-file" accept=".csv">
+        <button class="btn btn-sm btn-secondary" onclick="parseCampCSV()" style="margin-top:6px">Parse</button>
+        <span id="camp-csv-info" style="color:var(--text2);margin-left:8px"></span></div>
+      <div class="form-group"><label>Custom Prompt (optional)</label><textarea id="camp-prompt" rows="3" placeholder="Override prompt..."></textarea></div>
+      <button class="btn btn-primary" onclick="createCampaign()">🚀 Create Campaign</button>
+    </div>
+    <div class="card">
+      <h2>Campaigns</h2>
+      <table><thead><tr><th>Name</th><th>Status</th><th>Schedule</th><th>Time</th><th>OK/Fail</th><th>Last Run</th><th>Actions</th></tr></thead>
+        <tbody id="camp-table"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- AGENTS -->
+<div id="p-agents" class="panel">
+  <div class="grid-2">
+    <div class="card">
+      <h2>Agent Profile</h2>
+      <div class="form-group"><label>Name</label><input id="ap-name" placeholder="Sales Agent v1"></div>
+      <div class="form-group"><label>Voice</label><select id="ap-voice">
+        <optgroup label="Female voices">
+          <option value="Aoede" selected>Aoede — warm, expressive ⭐</option>
+          <option value="Achernar">Achernar — soft & clear</option>
+          <option value="Autonoe">Autonoe — natural female</option>
+          <option value="Callirrhoe">Callirrhoe — gentle female</option>
+          <option value="Despina">Despina — bright female</option>
+          <option value="Erinome">Erinome — smooth female</option>
+          <option value="Gacrux">Gacrux — rich female</option>
+          <option value="Kore">Kore — soft, calm</option>
+          <option value="Laomedeia">Laomedeia — light female</option>
+          <option value="Leda">Leda — clear female</option>
+          <option value="Pulcherrima">Pulcherrima — warm female</option>
+          <option value="Sulafat">Sulafat — smooth female</option>
+          <option value="Vindemiatrix">Vindemiatrix — professional</option>
+          <option value="Zephyr">Zephyr — airy female</option>
+        </optgroup>
+        <optgroup label="Male voices">
+          <option value="Achird">Achird — clear male</option>
+          <option value="Algenib">Algenib — strong male</option>
+          <option value="Algieba">Algieba — rich male</option>
+          <option value="Alnilam">Alnilam — deep male</option>
+          <option value="Charon">Charon — calm, deep</option>
+          <option value="Enceladus">Enceladus — expressive</option>
+          <option value="Fenrir">Fenrir — confident male</option>
+          <option value="Iapetus">Iapetus — steady male</option>
+          <option value="Orus">Orus — warm male</option>
+          <option value="Perseus">Perseus — clear male</option>
+          <option value="Puck">Puck — bright, energetic</option>
+          <option value="Rasalgethi">Rasalgethi — bold male</option>
+          <option value="Sadachbia">Sadachbia — natural male</option>
+          <option value="Sadaltager">Sadaltager — smooth male</option>
+          <option value="Schedar">Schedar — professional</option>
+          <option value="Umbriel">Umbriel — deep, calm</option>
+          <option value="Zubenelgenubi">Zubenelgenubi — resonant</option>
+        </optgroup>
+      </select></div>
+      <div class="form-group"><label>Model</label><select id="ap-model">
+        <option value="gemini-3.1-flash-live-preview" selected>gemini-3.1-flash-live-preview ⭐</option>
+        <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio</option>
+        <option value="gemini-2.0-flash">gemini-2.0-flash (pipeline)</option>
+      </select></div>
+      <div class="form-group"><label>Enabled Tools (JSON array, empty=all)</label><input id="ap-tools" value="[]" placeholder='["check_availability","book_appointment","end_call"]'></div>
+      <div class="form-group"><label>System Prompt</label><textarea id="ap-prompt" rows="5" placeholder="Custom prompt for this agent..."></textarea></div>
+      <div class="form-group"><label><input type="checkbox" id="ap-default"> Set as Default</label></div>
+      <button class="btn btn-primary" onclick="saveAgentProfile()">Save Profile</button>
+      <button class="btn btn-secondary" onclick="editingProfileId=null;$('ap-name').value=''">Reset</button>
+    </div>
+    <div class="card">
+      <h2>Profiles</h2>
+      <table><thead><tr><th>Name</th><th>Voice</th><th>Model</th><th>Prompt</th><th>Actions</th></tr></thead>
+        <tbody id="agent-table"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- PROMPT -->
+<div id="p-prompt" class="panel">
+  <div class="card" style="max-width:800px">
+    <h2>✏️ AI System Prompt</h2>
+    <div id="prompt-status" style="color:var(--text2);margin-bottom:8px"></div>
+    <textarea id="prompt-text" rows="20" style="font-size:13px"></textarea>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="savePrompt()">Save Prompt</button>
+      <button class="btn btn-danger" onclick="resetPrompt()">Reset to Default</button>
+    </div>
+  </div>
+</div>
+
+<!-- APPOINTMENTS -->
+<div id="p-appointments" class="panel">
+  <div class="card">
+    <h2>📅 Appointments</h2>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+      <input type="date" id="apt-date" style="width:auto">
+      <button class="btn btn-sm btn-secondary" onclick="loadAppointments()">Filter</button>
+      <button class="btn btn-sm btn-secondary" onclick="$('apt-date').value='';loadAppointments()">Clear</button>
+    </div>
+    <table><thead><tr><th>Name</th><th>Phone</th><th>Date</th><th>Time</th><th>Service</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="apt-table"></tbody></table>
+  </div>
+</div>
+
+<!-- CALL LOGS -->
+<div id="p-calls" class="panel">
+  <div class="card">
+    <h2>📝 Call Logs</h2>
+    <table><thead><tr><th>Phone</th><th>Lead</th><th>Outcome</th><th>Duration</th><th>Time</th><th>Recording</th><th>Notes</th></tr></thead>
+      <tbody id="calls-table"></tbody></table>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-sm btn-secondary" onclick="prevPage()">← Prev</button>
+      <span id="calls-page">Page 1</span>
+      <button class="btn btn-sm btn-secondary" onclick="nextPage()">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- CRM -->
+<div id="p-crm" class="panel">
+  <div class="card">
+    <h2>👥 CRM — Contacts</h2>
+    <table><thead><tr><th>Phone</th><th>Name</th><th>Calls</th><th>Booked</th><th>Last Outcome</th><th>Last Call</th></tr></thead>
+      <tbody id="crm-table"></tbody></table>
+    <div id="crm-detail" class="card" style="margin-top:16px;display:none"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="p-settings" class="panel">
+  <div class="card"><h2>LiveKit</h2>
+    <div class="form-group"><label>URL <span class="cfg-badge"></span></label><input id="s-LIVEKIT_URL" placeholder="wss://..."></div>
+    <div class="form-group"><label>API Key <span class="cfg-badge"></span></label><input id="s-LIVEKIT_API_KEY" type="password"></div>
+    <div class="form-group"><label>API Secret <span class="cfg-badge"></span></label><input id="s-LIVEKIT_API_SECRET" type="password"></div>
+    <button class="btn btn-primary btn-sm" onclick="saveGroup(['LIVEKIT_URL','LIVEKIT_API_KEY','LIVEKIT_API_SECRET'])">Save LiveKit</button>
+  </div>
+  <div class="card"><h2>Gemini AI</h2>
+    <div class="form-group"><label>API Key <span class="cfg-badge"></span></label><input id="s-GOOGLE_API_KEY" type="password"></div>
+    <div class="form-group"><label>Model</label><select id="s-GEMINI_MODEL">
+      <option value="gemini-3.1-flash-live-preview">gemini-3.1-flash-live-preview</option>
+      <option value="gemini-2.5-flash-native-audio-preview-12-2025">gemini-2.5-flash-native-audio</option>
+    </select></div>
+    <div class="form-group"><label>Voice</label><select id="s-GEMINI_TTS_VOICE">
+      <option value="Aoede">Aoede</option><option value="Kore">Kore</option><option value="Charon">Charon</option><option value="Fenrir">Fenrir</option><option value="Puck">Puck</option>
+    </select></div>
+    <div class="form-group"><label>Realtime Mode</label><select id="s-USE_GEMINI_REALTIME"><option value="true">Enabled</option><option value="false">Disabled (Pipeline)</option></select></div>
+    <button class="btn btn-primary btn-sm" onclick="saveGroup(['GOOGLE_API_KEY','GEMINI_MODEL','GEMINI_TTS_VOICE','USE_GEMINI_REALTIME'])">Save Gemini</button>
+  </div>
+  <div class="card"><h2>Vobiz SIP</h2>
+    <div class="form-group"><label>SIP Domain <span class="cfg-badge"></span></label><input id="s-VOBIZ_SIP_DOMAIN" placeholder="xxx.sip.vobiz.ai"></div>
+    <div class="form-group"><label>Username</label><input id="s-VOBIZ_USERNAME"></div>
+    <div class="form-group"><label>Password</label><input id="s-VOBIZ_PASSWORD" type="password"></div>
+    <div class="form-group"><label>Outbound Number</label><input id="s-VOBIZ_OUTBOUND_NUMBER" placeholder="+91..."></div>
+    <div class="form-group"><label>Trunk ID <span class="cfg-badge"></span></label><input id="s-OUTBOUND_TRUNK_ID" placeholder="ST_..."></div>
+    <div class="form-group"><label>Transfer Number</label><input id="s-DEFAULT_TRANSFER_NUMBER" placeholder="+91..."></div>
+    <button class="btn btn-primary btn-sm" onclick="saveGroup(['VOBIZ_SIP_DOMAIN','VOBIZ_USERNAME','VOBIZ_PASSWORD','VOBIZ_OUTBOUND_NUMBER','DEFAULT_TRANSFER_NUMBER'])">Save Vobiz</button>
+    <button class="btn btn-secondary btn-sm" onclick="createSIPTrunk()" style="margin-left:8px">⚡ Create SIP Trunk</button>
+  </div>
+  <div class="card"><h2>Optional — Twilio SMS</h2>
+    <div class="form-group"><label>Account SID</label><input id="s-TWILIO_ACCOUNT_SID"></div>
+    <div class="form-group"><label>Auth Token</label><input id="s-TWILIO_AUTH_TOKEN" type="password"></div>
+    <div class="form-group"><label>From Number</label><input id="s-TWILIO_FROM_NUMBER"></div>
+    <button class="btn btn-primary btn-sm" onclick="saveGroup(['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_FROM_NUMBER'])">Save Twilio</button>
+  </div>
+  <div class="card"><h2>Optional — S3 Recordings</h2>
+    <div class="form-group"><label>Access Key</label><input id="s-S3_ACCESS_KEY_ID"></div>
+    <div class="form-group"><label>Secret Key</label><input id="s-S3_SECRET_ACCESS_KEY" type="password"></div>
+    <div class="form-group"><label>Endpoint URL</label><input id="s-S3_ENDPOINT_URL"></div>
+    <div class="form-group"><label>Region</label><input id="s-S3_REGION" value="ap-northeast-1"></div>
+    <div class="form-group"><label>Bucket</label><input id="s-S3_BUCKET" value="call-recordings"></div>
+    <button class="btn btn-primary btn-sm" onclick="saveGroup(['S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY','S3_ENDPOINT_URL','S3_REGION','S3_BUCKET'])">Save S3</button>
+  </div>
+  <div class="card"><h2>Optional — Cal.com</h2>
+    <div class="form-group"><label>API Key</label><input id="s-CALCOM_API_KEY" type="password"></div>
+    <div class="form-group"><label>Event Type ID</label><input id="s-CALCOM_EVENT_TYPE_ID"></div>
+    <div class="form-group"><label>Timezone</label><input id="s-CALCOM_TIMEZONE" value="Asia/Kolkata"></div>
+    <button class="btn btn-primary btn-sm" onclick="saveGroup(['CALCOM_API_KEY','CALCOM_EVENT_TYPE_ID','CALCOM_TIMEZONE'])">Save Cal.com</button>
+  </div>
+  <div class="card"><h2>Optional — Deepgram</h2>
+    <div class="form-group"><label>API Key</label><input id="s-DEEPGRAM_API_KEY" type="password"></div>
+    <button class="btn btn-primary btn-sm" onclick="saveGroup(['DEEPGRAM_API_KEY'])">Save Deepgram</button>
+  </div>
+</div>
+
+<!-- LOGS -->
+<div id="p-logs" class="panel">
+  <div class="card">
+    <h2>📋 System Logs</h2>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+      <select id="log-level" onchange="loadLogs()" style="width:auto"><option value="">All Levels</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select>
+      <select id="log-source" onchange="loadLogs()" style="width:auto"><option value="">All Sources</option><option value="agent">Agent</option><option value="server">Server</option></select>
+      <button class="btn btn-sm btn-danger" onclick="clearLogs()">Clear</button>
+      <button class="btn btn-sm btn-secondary" id="logs-pause-btn" onclick="toggleLogsPause()">Pause</button>
+    </div>
+    <div id="log-container" style="max-height:500px;overflow-y:auto;background:var(--card2);border-radius:8px;padding:8px"></div>
+  </div>
+</div>
+
+<!-- SETUP -->
+<div id="p-setup" class="panel">
+  <div class="card" style="max-width:800px">
+    <h2>🔧 Quick Start Guide</h2>
+    <ol style="padding-left:20px;line-height:2">
+      <li>Run <code>supabase_schema.sql</code> in Supabase Dashboard → SQL Editor</li>
+      <li>Go to ⚙️ Settings → fill in LiveKit, Gemini, and Vobiz credentials → Save each</li>
+      <li>Click ⚡ Create SIP Trunk in the Vobiz section</li>
+      <li>Go to ✏️ AI Prompt → customize for your business → Save</li>
+      <li>Go to 🤖 Agents → create an agent profile</li>
+      <li>Go to 📞 Single Call → test with your own number</li>
+    </ol>
+  </div>
+  <div class="card" style="max-width:800px">
+    <h2>💰 Cost Breakdown</h2>
+    <table>
+      <tr><th>Service</th><th>Cost/min</th><th>Notes</th></tr>
+      <tr><td>Vobiz SIP</td><td>₹1.00</td><td>Fixed telephony</td></tr>
+      <tr><td>LiveKit Cloud</td><td>₹0.17</td><td>Free tier: 100k min/mo</td></tr>
+      <tr><td>Gemini Live</td><td>₹0.03</td><td>Free tier covers most usage</td></tr>
+      <tr><td><strong>Total</strong></td><td><strong>≈ ₹1.20/min</strong></td><td>~₹2.40 per 2-min call</td></tr>
+    </table>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script src="/ui/app.js"></script>
+<script>
+// CRM detail toggle
+document.addEventListener('click', function(e) {
+  const det = document.getElementById('crm-detail');
+  if (det && det.innerHTML) det.style.display = 'block';
+});
+</script>
+</body>
+</html>
