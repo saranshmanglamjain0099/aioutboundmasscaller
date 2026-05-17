@@ -25,7 +25,7 @@ except ImportError:
     _HAS_ROOM_OPTIONS = False
 from livekit.plugins import noise_cancellation, silero
 
-from db import init_db, log_error, get_enabled_tools
+from db import init_db, log_error, get_enabled_tools, get_setting
 from prompts import build_prompt
 from tools import AppointmentTools
 
@@ -218,9 +218,20 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     # -- Dial - MUST come before session.start() --
     if phone_number:
-        trunk_id = os.getenv("OUTBOUND_TRUNK_ID")
+        # Check env first, then Supabase settings (dashboard may have created trunk)
+        trunk_id = os.getenv("OUTBOUND_TRUNK_ID", "")
         if not trunk_id:
-            await _log("error", "OUTBOUND_TRUNK_ID not set -- cannot place outbound call")
+            try:
+                trunk_id = await get_setting("OUTBOUND_TRUNK_ID", "")
+            except Exception:
+                trunk_id = ""
+        if not trunk_id:
+            await _log("error", "OUTBOUND_TRUNK_ID not set -- go to Settings > Vobiz > Create SIP Trunk first")
+            ctx.shutdown()
+            return
+        # Validate trunk ID format - LiveKit trunk IDs start with ST_
+        if not trunk_id.startswith("ST_"):
+            await _log("error", f"Invalid OUTBOUND_TRUNK_ID: '{trunk_id}' -- must start with ST_ (this looks like a Vobiz UUID, not a LiveKit trunk). Click 'Create SIP Trunk' in Settings.")
             ctx.shutdown()
             return
         await _log("info", f"Dialing {phone_number} via SIP trunk {trunk_id}")
