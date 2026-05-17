@@ -1,8 +1,9 @@
 const $=id=>document.getElementById(id);
-const api=(p,o)=>fetch(p,o).then(r=>r.json());
-const apiPost=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
-const apiDel=p=>fetch(p,{method:'DELETE'}).then(r=>r.json());
-const apiPatch=(p,b)=>fetch(p,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+async function api(p,o){const r=await fetch(p,o);if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()}
+async function apiPost(p,b){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()}
+async function apiDel(p){const r=await fetch(p,{method:'DELETE'});if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()}
+async function apiPatch(p,b){const r=await fetch(p,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()}
+async function apiPut(p,b){const r=await fetch(p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()}
 let charts={},callPage=1,logsInterval=null,logsPaused=false;
 
 function toast(msg,type='ok'){
@@ -242,28 +243,48 @@ window.loadContactDetail=async phone=>{
 
 // Settings
 async function loadSettings(){
-  const s=await api('/api/settings');
-  const fields=['LIVEKIT_URL','LIVEKIT_API_KEY','LIVEKIT_API_SECRET','GOOGLE_API_KEY','GEMINI_MODEL','GEMINI_TTS_VOICE','USE_GEMINI_REALTIME',
-    'VOBIZ_SIP_DOMAIN','VOBIZ_USERNAME','VOBIZ_PASSWORD','VOBIZ_OUTBOUND_NUMBER','OUTBOUND_TRUNK_ID','DEFAULT_TRANSFER_NUMBER',
-    'TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_FROM_NUMBER',
-    'S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY','S3_ENDPOINT_URL','S3_REGION','S3_BUCKET',
-    'CALCOM_API_KEY','CALCOM_EVENT_TYPE_ID','CALCOM_TIMEZONE','DEEPGRAM_API_KEY'];
-  fields.forEach(k=>{
-    const el=$('s-'+k);if(!el)return;
-    const info=s[k]||{};
-    if(info.value)el.value=info.value;
-    const badge=el.parentElement?.querySelector('.cfg-badge');
-    if(badge)badge.textContent=info.configured?'✓':'○';
-  });
+  try{
+    const s=await api('/api/settings');
+    const fields=['LIVEKIT_URL','LIVEKIT_API_KEY','LIVEKIT_API_SECRET','GOOGLE_API_KEY','GEMINI_MODEL','GEMINI_TTS_VOICE','USE_GEMINI_REALTIME',
+      'VOBIZ_SIP_DOMAIN','VOBIZ_USERNAME','VOBIZ_PASSWORD','VOBIZ_OUTBOUND_NUMBER','OUTBOUND_TRUNK_ID','DEFAULT_TRANSFER_NUMBER',
+      'TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_FROM_NUMBER',
+      'S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY','S3_ENDPOINT_URL','S3_REGION','S3_BUCKET',
+      'CALCOM_API_KEY','CALCOM_EVENT_TYPE_ID','CALCOM_TIMEZONE','DEEPGRAM_API_KEY'];
+    fields.forEach(k=>{
+      const el=$('s-'+k);if(!el)return;
+      const info=s[k]||{};
+      // Only fill non-sensitive fields, or sensitive ones that have a value from the API
+      // Don't overwrite user-typed values with empty strings
+      if(info.value)el.value=info.value;
+      // Update the configured badge
+      const bdg=el.parentElement?.querySelector('.cfg-badge');
+      if(bdg)bdg.textContent=info.configured?'✓ Set':'○';
+    });
+  }catch(e){console.error('loadSettings error:',e)}
 }
-async function saveGroup(keys){
+window.saveGroup=async function(keys){
   const settings={};
-  keys.forEach(k=>{const el=$('s-'+k);if(el&&el.value)settings[k]=el.value});
-  if(!Object.keys(settings).length){toast('Nothing to save','err');return}
-  await apiPost('/api/settings',{settings});toast('Saved');loadSettings();
-}
+  keys.forEach(k=>{
+    const el=$('s-'+k);
+    if(el && el.value && el.value.trim()){
+      settings[k]=el.value.trim();
+    }
+  });
+  if(!Object.keys(settings).length){
+    toast('Fill in at least one field before saving','err');
+    return;
+  }
+  try{
+    const r=await apiPost('/api/settings',{settings});
+    toast('Saved '+Object.keys(settings).length+' setting(s)');
+    loadSettings();
+  }catch(e){
+    console.error('Save error:',e);
+    toast('Save failed: '+e.message,'err');
+  }
+};
 window.createSIPTrunk=async()=>{
-  try{const r=await apiPost('/api/setup/trunk',{});toast('Trunk created: '+r.trunk_id);loadSettings()}catch(e){toast('Failed: '+e,'err')}
+  try{const r=await apiPost('/api/setup/trunk',{});toast('Trunk created: '+r.trunk_id);loadSettings()}catch(e){toast('Failed: '+e.message,'err')}
 };
 
 // Logs
